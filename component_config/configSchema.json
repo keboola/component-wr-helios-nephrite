@@ -1,19 +1,43 @@
 {
   "type": "object",
-  "title": "extractor configuration",
+  "title": "Helios Nephrite Writer Configuration",
   "required": [
-    "print_hello"
+    "api_url",
+    "#username",
+    "#password"
   ],
   "properties": {
-    "print_hello": {
-      "type": "boolean",
-      "title": "Print Hello",
+    "api_url": {
+      "type": "string",
+      "title": "API URL",
+      "description": "Base URL for Helios Nephrite API (e.g., https://api.helios.eu)",
       "propertyOrder": 1
+    },
+    "#username": {
+      "type": "string",
+      "title": "Username",
+      "description": "Helios username for authentication",
+      "propertyOrder": 2
+    },
+    "#password": {
+      "type": "string",
+      "title": "Password",
+      "format": "password",
+      "description": "Helios password for authentication",
+      "propertyOrder": 3
+    },
+    "default_folder_id": {
+      "type": "integer",
+      "title": "Default Folder ID",
+      "description": "Optional default folder ID for entity creation (can be overridden per table)",
+      "propertyOrder": 4
     },
     "debug": {
       "type": "boolean",
-      "title": "Debug",
-      "propertyOrder": 2
+      "title": "Debug Mode",
+      "description": "Enable verbose debug logging",
+      "default": false,
+      "propertyOrder": 5
     }
   }
 }

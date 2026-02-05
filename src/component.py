@@ -1,99 +1,228 @@
-"""
-Template Component main class.
-
-"""
-
 import csv
 import logging
-from datetime import datetime
+import re
 
-from keboola.component.base import ComponentBase
+from keboola.component.base import ComponentBase, sync_action
 from keboola.component.exceptions import UserException
 
-from configuration import Configuration
+from configuration import Configuration, RowConfiguration, FieldMapping
+from helios_client import HeliosClient
 
 
 class Component(ComponentBase):
-    """
-    Extends base class for general Python components. Initializes the CommonInterface
-    and performs configuration validation.
-
-    For easier debugging the data folder is picked up by default from `../data` path,
-    relative to working directory.
-
-    If `debug` parameter is present in the `config.json`, the default logger is set to verbose DEBUG mode.
-    """
-
     def __init__(self):
         super().__init__()
+        self.params = Configuration(**self.configuration.parameters)
+        self.client = HeliosClient(self.params.api_url)
+
+    @sync_action("load_entity_fields")
+    def load_entity_fields(self) -> dict:
+        action_params = self.configuration.action_parameters
+        entity_name = action_params.get("entity_name")
+
+        if not entity_name:
+            raise UserException("Entity name is required")
+
+        folder_id = action_params.get("folder_id") or self.params.default_folder_id
+
+        csv_columns = []
+        input_tables = self.get_input_tables_definitions()
+        if input_tables and len(input_tables) > 0:
+            table = input_tables[0]
+            csv_columns = table.columns if hasattr(table, "columns") and table.columns else []
+
+            if not csv_columns and table.full_path:
+                try:
+                    with open(table.full_path, "r", encoding="utf-8") as f:
+                        reader = csv.DictReader(f)
+                        csv_columns = reader.fieldnames or []
+                except Exception as e:
+                    logging.warning(f"Could not read CSV columns: {e}")
+
+        self.client.login(self.params.username, self.params.password)
+
+        try:
+            browse_result = self.client.browse_entity(entity_name, folder_id)
+            columns_info = browse_result.get("columnsInfo", [])
+
+            available_fields = []
+            for col in columns_info:
+                field_info = {
+                    "field_name": col.get("columnName"),
+                    "data_type": col.get("dataTypeRepo"),
+                    "header_text": col.get("headerText"),
+                    "visible": col.get("visible", True),
+                }
+                available_fields.append(field_info)
+
+            suggested_mapping = self._auto_match_fields(csv_columns, available_fields)
+
+            return {
+                "type": "data",
+                "data": {
+                    "entity_name": entity_name,
+                    "folder_id": folder_id,
+                    "field_mapping": suggested_mapping,
+                },
+            }
+
+        finally:
+            self.client.logout()
+
+    def _auto_match_fields(self, csv_columns: list[str], api_fields: list[dict]) -> list[dict]:
+        def normalize(name: str) -> str:
+            return re.sub(r"[_\s-]", "", name.lower())
+
+        api_field_map = {}
+        api_field_normalized = {}
+
+        for field in api_fields:
+            field_name = field.get("field_name")
+            if not field_name:
+                continue
+            api_field_map[field_name.lower()] = field
+            api_field_normalized[normalize(field_name)] = field
+
+        suggested_mapping = []
+
+        for csv_col in csv_columns:
+            mapping = {
+                "source_column": csv_col,
+                "destination_field": "",
+                "data_type": None,
+                "enabled": False,
+            }
+
+            if csv_col.lower() in api_field_map:
+                matched_field = api_field_map[csv_col.lower()]
+                mapping["destination_field"] = matched_field.get("field_name")
+                mapping["data_type"] = matched_field.get("data_type")
+                mapping["enabled"] = True
+            else:
+                # Try normalized match
+                normalized = normalize(csv_col)
+                if normalized in api_field_normalized:
+                    matched_field = api_field_normalized[normalized]
+                    mapping["destination_field"] = matched_field.get("field_name")
+                    mapping["data_type"] = matched_field.get("data_type")
+                    mapping["enabled"] = True
+
+            suggested_mapping.append(mapping)
+
+        return suggested_mapping
 
     def run(self):
-        """
-        Main execution code
-        """
-
-        # ####### EXAMPLE TO REMOVE
-        # check for missing configuration parameters
-        params = Configuration(**self.configuration.parameters)
-
-        # Access parameters in configuration
-        if params.print_hello:
-            logging.info("Hello World")
-
-        # get input table definitions
         input_tables = self.get_input_tables_definitions()
-        for table in input_tables:
-            logging.info(f"Received input table: {table.name} with path: {table.full_path}")
+        if not input_tables:
+            raise UserException("No input tables found. Please map at least one input table.")
 
-        if len(input_tables) == 0:
-            raise UserException("No input tables found")
+        logging.info(f"Found {len(input_tables)} input table(s) to process")
 
-        # get last state data/in/state.json from previous run
-        previous_state = self.get_state_file()
-        logging.info(previous_state.get("some_parameter"))
+        logging.info(f"Authenticating with Helios API at {self.params.api_url}")
+        self.client.login(self.params.username, self.params.password)
 
-        # Create output table (Table definition - just metadata)
-        table = self.create_out_table_definition("output.csv", incremental=True, primary_key=["timestamp"])
+        try:
+            for table in input_tables:
+                logging.info(f"Processing table: {table.name}")
+                row_config = self._get_row_configuration(table)
+                self._process_table_generic(self.client, table, row_config, self.params)
 
-        # get file path of the table (data/out/tables/Features.csv)
-        out_table_path = table.full_path
-        logging.info(out_table_path)
+            logging.info("All tables processed successfully")
 
-        # Add timestamp column and save into out_table_path
-        input_table = input_tables[0]
-        with (
-            open(input_table.full_path, "r") as inp_file,
-            open(table.full_path, mode="wt", encoding="utf-8", newline="") as out_file,
-        ):
-            reader = csv.DictReader(inp_file)
+        finally:
+            self.client.logout()
 
-            columns = list(reader.fieldnames)
-            # append timestamp
-            columns.append("timestamp")
+    def _get_row_configuration(self, table) -> RowConfiguration:
+        config_data = {}
+        if hasattr(table, "configuration") and table.configuration:
+            config_data = table.configuration
 
-            # write result with column added
-            writer = csv.DictWriter(out_file, fieldnames=columns)
-            writer.writeheader()
-            for in_row in reader:
-                in_row["timestamp"] = datetime.now().isoformat()
-                writer.writerow(in_row)
+        try:
+            row_config = RowConfiguration(**config_data)
+        except Exception as e:
+            raise UserException(f"Invalid configuration for table '{table.name}': {e}")
 
-        # Save table manifest (output.csv.manifest) from the Table definition
-        self.write_manifest(table)
+        if not row_config.field_mapping:
+            raise UserException(
+                f"No field mappings configured for table '{table.name}'. "
+                f"Please use the 'Load Fields' button to configure field mappings."
+            )
 
-        # Write new state - will be available next run
-        self.write_state_file({"some_state_parameter": "value"})
+        enabled_fields = [m for m in row_config.field_mapping if m.enabled]
+        if not enabled_fields:
+            raise UserException(
+                f"No enabled field mappings for table '{table.name}'. Please enable at least one field in the mapping."
+            )
 
-        # ####### EXAMPLE TO REMOVE END
+        return row_config
+
+    def _process_table_generic(self, client: HeliosClient, table, row_config: RowConfiguration, params: Configuration):
+        entity_name = row_config.entity_name
+        folder_id = row_config.folder_id or params.default_folder_id
+
+        field_map = {}
+        for mapping in row_config.field_mapping:
+            if mapping.enabled and mapping.destination_field:
+                field_map[mapping.source_column] = mapping.destination_field
+
+        if not field_map:
+            raise UserException(
+                f"No valid field mappings for table '{table.name}'. "
+                f"Please configure at least one enabled mapping with a destination field."
+            )
+
+        logging.info(f"Creating entities for '{entity_name}' with {len(field_map)} mapped fields")
+
+        success_count = 0
+        error_count = 0
+
+        try:
+            with open(table.full_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+
+                for row_num, csv_row in enumerate(reader, start=1):
+                    try:
+                        api_payload = self._transform_row(csv_row, field_map)
+                        client.create_entity(entity_name, api_payload, folder_id)
+                        success_count += 1
+
+                        if params.debug and success_count <= 3:
+                            logging.debug(f"Created entity {success_count}: {api_payload}")
+
+                    except UserException as e:
+                        error_count += 1
+                        logging.error(f"Row {row_num} failed: {e}")
+                    except Exception as e:
+                        error_count += 1
+                        logging.error(f"Row {row_num} failed with unexpected error: {e}")
+
+        except FileNotFoundError:
+            raise UserException(f"Input file not found: {table.full_path}")
+        except Exception as e:
+            raise UserException(f"Failed to process CSV file: {e}")
+
+        logging.info(f"Table '{table.name}' processed: {success_count} succeeded, {error_count} failed")
+
+        if error_count > 0:
+            logging.warning(f"Table '{table.name}' completed with {error_count} errors. Check logs for details.")
+
+    def _transform_row(self, csv_row: dict, field_map: dict) -> dict:
+        api_payload = {}
+
+        for csv_column, api_field in field_map.items():
+            value = csv_row.get(csv_column)
+
+            if value == "":
+                value = None
+
+            api_payload[api_field] = value
+
+        return api_payload
 
 
-"""
-        Main entrypoint
-"""
 if __name__ == "__main__":
     try:
         comp = Component()
-        # this triggers the run method by default and is controlled by the configuration.action parameter
         comp.execute_action()
     except UserException as exc:
         logging.exception(exc)

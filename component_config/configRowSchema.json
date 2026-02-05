@@ -1,1 +1,72 @@
-{}
+{
+  "type": "object",
+  "title": "Table Configuration",
+  "required": [
+    "entity_name"
+  ],
+  "properties": {
+    "entity_name": {
+      "type": "string",
+      "title": "Entity Name",
+      "description": "Helios entity class name (e.g., 'invoices', 'customers', 'items')",
+      "propertyOrder": 1
+    },
+    "folder_id": {
+      "type": "integer",
+      "title": "Folder ID",
+      "description": "Optional folder ID for this entity (overrides default from global config)",
+      "propertyOrder": 2
+    },
+    "load_fields": {
+      "type": "button",
+      "format": "sync-action",
+      "propertyOrder": 3,
+      "options": {
+        "async": {
+          "label": "Load Fields",
+          "action": "load_entity_fields",
+          "autoload": [],
+          "cache": false
+        }
+      }
+    },
+    "field_mapping": {
+      "type": "array",
+      "title": "Field Mapping",
+      "description": "Mapping between CSV columns and Helios API fields",
+      "propertyOrder": 4,
+      "items": {
+        "type": "object",
+        "title": "Field Mapping",
+        "required": [
+          "source_column",
+          "destination_field",
+          "enabled"
+        ],
+        "properties": {
+          "source_column": {
+            "type": "string",
+            "title": "Source Column",
+            "description": "Column name from the input CSV file"
+          },
+          "destination_field": {
+            "type": "string",
+            "title": "Destination Field",
+            "description": "Field name in the Helios API"
+          },
+          "data_type": {
+            "type": "string",
+            "title": "Data Type",
+            "description": "Data type from the API (for reference)"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether to include this field in the mapping",
+            "default": true
+          }
+        }
+      }
+    }
+  }
+}
