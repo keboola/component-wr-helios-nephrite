@@ -17,25 +17,12 @@
       "description": "Optional folder ID for this entity (overrides default from global config)",
       "propertyOrder": 2
     },
-    "load_fields": {
-      "type": "button",
-      "format": "sync-action",
-      "propertyOrder": 3,
-      "options": {
-        "async": {
-          "label": "Load Fields",
-          "action": "load_entity_fields",
-          "autoload": [],
-          "cache": false
-        }
-      }
-    },
     "field_mapping": {
       "type": "array",
       "title": "Field Mapping",
       "description": "Mapping between CSV columns and Helios API fields",
       "format": "table",
-      "propertyOrder": 4,
+      "propertyOrder": 3,
       "items": {
         "type": "object",
         "title": "Field Mapping",
@@ -70,6 +57,19 @@
             ],
             "propertyOrder": 2
           }
+        }
+      }
+    },
+    "load_fields": {
+      "type": "button",
+      "format": "sync-action",
+      "propertyOrder": 4,
+      "options": {
+        "async": {
+          "label": "Reload Fields",
+          "action": "load_entity_fields",
+          "autoload": [],
+          "cache": false
         }
       }
     },
