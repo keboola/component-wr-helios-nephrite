@@ -34,36 +34,77 @@
       "type": "array",
       "title": "Field Mapping",
       "description": "Mapping between CSV columns and Helios API fields",
+      "format": "table",
       "propertyOrder": 4,
       "items": {
         "type": "object",
         "title": "Field Mapping",
         "required": [
           "source_column",
-          "destination_field",
-          "enabled"
+          "destination_field"
         ],
         "properties": {
           "source_column": {
             "type": "string",
             "title": "Source Column",
-            "description": "Column name from the input CSV file"
+            "description": "Column name from the input CSV file",
+            "watch": {
+              "columns": "_metadata_.table.columns"
+            },
+            "enumSource": "columns",
+            "propertyOrder": 1
           },
           "destination_field": {
             "type": "string",
             "title": "Destination Field",
-            "description": "Field name in the Helios API"
-          },
-          "data_type": {
-            "type": "string",
-            "title": "Data Type",
-            "description": "Data type from the API (for reference)"
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "description": "Whether to include this field in the mapping",
-            "default": true
+            "description": "Field name in the Helios API",
+            "watch": {
+              "api_fields": "_metadata_.api_fields"
+            },
+            "enumSource": [
+              {
+                "source": "api_fields",
+                "title": "{{item.field_name}}",
+                "value": "{{item.field_name}}"
+              }
+            ],
+            "propertyOrder": 2
+          }
+        }
+      }
+    },
+    "_metadata_": {
+      "type": "object",
+      "options": {
+        "hidden": true
+      },
+      "properties": {
+        "table": {
+          "type": "object",
+          "properties": {
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "api_fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field_name": {
+                "type": "string"
+              },
+              "data_type": {
+                "type": "string"
+              },
+              "header_text": {
+                "type": "string"
+              }
+            }
           }
         }
       }

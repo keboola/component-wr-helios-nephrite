@@ -7,8 +7,6 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 class FieldMapping(BaseModel):
     source_column: str
     destination_field: str
-    data_type: str | None = None
-    enabled: bool = True
 
 
 class RowConfiguration(BaseModel):

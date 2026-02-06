@@ -89,25 +89,21 @@ class Component(ComponentBase):
             mapping = {
                 "source_column": csv_col,
                 "destination_field": "",
-                "data_type": None,
-                "enabled": False,
             }
 
             if csv_col.lower() in api_field_map:
                 matched_field = api_field_map[csv_col.lower()]
                 mapping["destination_field"] = matched_field.get("field_name")
-                mapping["data_type"] = matched_field.get("data_type")
-                mapping["enabled"] = True
             else:
                 # Try normalized match
                 normalized = normalize(csv_col)
                 if normalized in api_field_normalized:
                     matched_field = api_field_normalized[normalized]
                     mapping["destination_field"] = matched_field.get("field_name")
-                    mapping["data_type"] = matched_field.get("data_type")
-                    mapping["enabled"] = True
 
-            suggested_mapping.append(mapping)
+            # Only include mappings that have a destination field (matched columns)
+            if mapping["destination_field"]:
+                suggested_mapping.append(mapping)
 
         return suggested_mapping
 
@@ -148,12 +144,6 @@ class Component(ComponentBase):
                 f"Please use the 'Load Fields' button to configure field mappings."
             )
 
-        enabled_fields = [m for m in row_config.field_mapping if m.enabled]
-        if not enabled_fields:
-            raise UserException(
-                f"No enabled field mappings for table '{table.name}'. Please enable at least one field in the mapping."
-            )
-
         return row_config
 
     def _process_table_generic(self, client: HeliosClient, table, row_config: RowConfiguration, params: Configuration):
@@ -162,7 +152,7 @@ class Component(ComponentBase):
 
         field_map = {}
         for mapping in row_config.field_mapping:
-            if mapping.enabled and mapping.destination_field:
+            if mapping.destination_field:
                 field_map[mapping.source_column] = mapping.destination_field
 
         if not field_map:
