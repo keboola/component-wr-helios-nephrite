@@ -5,7 +5,7 @@ import re
 from keboola.component.base import ComponentBase, sync_action
 from keboola.component.exceptions import UserException
 
-from configuration import Configuration, RowConfiguration, FieldMapping
+from configuration import Configuration, RowConfiguration
 from helios_client import HeliosClient
 
 
