@@ -17,57 +17,103 @@ class Component(ComponentBase):
 
     @sync_action("load_entity_fields")
     def load_entity_fields(self) -> dict:
+        # TODO: REMOVE DEBUG DATA - This is temporary dummy data for UI testing
+        # Uncomment the real implementation below once UI is working
+
         action_params = self.configuration.action_parameters
-        entity_name = action_params.get("entity_name")
+        entity_name = action_params.get("entity_name") or "invoices"
+        folder_id = action_params.get("folder_id") or self.params.default_folder_id or 1
 
-        if not entity_name:
-            raise UserException("Entity name is required")
+        # Dummy CSV columns
+        csv_columns = ["invoice_id", "customer_name", "invoice_date", "total_amount", "status"]
 
-        folder_id = action_params.get("folder_id") or self.params.default_folder_id
+        # Dummy API fields
+        available_fields = [
+            {"field_name": "id", "data_type": "INTEGER", "header_text": "Invoice ID"},
+            {"field_name": "customerName", "data_type": "STRING", "header_text": "Customer Name"},
+            {"field_name": "invoiceDate", "data_type": "DATE", "header_text": "Invoice Date"},
+            {"field_name": "totalAmount", "data_type": "DECIMAL", "header_text": "Total Amount"},
+            {"field_name": "status", "data_type": "STRING", "header_text": "Status"},
+            {"field_name": "description", "data_type": "STRING", "header_text": "Description"},
+            {"field_name": "dueDate", "data_type": "DATE", "header_text": "Due Date"},
+        ]
 
-        csv_columns = []
-        input_tables = self.get_input_tables_definitions()
-        if input_tables and len(input_tables) > 0:
-            table = input_tables[0]
-            csv_columns = table.columns if hasattr(table, "columns") and table.columns else []
+        # Auto-match fields
+        suggested_mapping = self._auto_match_fields(csv_columns, available_fields)
 
-            if not csv_columns and table.full_path:
-                try:
-                    with open(table.full_path, "r", encoding="utf-8") as f:
-                        reader = csv.DictReader(f)
-                        csv_columns = reader.fieldnames or []
-                except Exception as e:
-                    logging.warning(f"Could not read CSV columns: {e}")
-
-        self.client.login(self.params.username, self.params.password)
-
-        try:
-            browse_result = self.client.browse_entity(entity_name, folder_id)
-            columns_info = browse_result.get("columnsInfo", [])
-
-            available_fields = []
-            for col in columns_info:
-                field_info = {
-                    "field_name": col.get("columnName"),
-                    "data_type": col.get("dataTypeRepo"),
-                    "header_text": col.get("headerText"),
-                    "visible": col.get("visible", True),
-                }
-                available_fields.append(field_info)
-
-            suggested_mapping = self._auto_match_fields(csv_columns, available_fields)
-
-            return {
-                "type": "data",
-                "data": {
-                    "entity_name": entity_name,
-                    "folder_id": folder_id,
-                    "field_mapping": suggested_mapping,
+        return {
+            "type": "data",
+            "data": {
+                "entity_name": entity_name,
+                "folder_id": folder_id,
+                "field_mapping": suggested_mapping,
+                "_metadata_": {
+                    "table": {
+                        "columns": csv_columns,
+                    },
+                    "api_fields": available_fields,
                 },
-            }
+            },
+        }
 
-        finally:
-            self.client.logout()
+        # TODO: REMOVE ABOVE - Restore this real implementation:
+        # action_params = self.configuration.action_parameters
+        # entity_name = action_params.get("entity_name")
+        #
+        # if not entity_name:
+        #     raise UserException("Entity name is required")
+        #
+        # folder_id = action_params.get("folder_id") or self.params.default_folder_id
+        #
+        # csv_columns = []
+        # input_tables = self.get_input_tables_definitions()
+        # if input_tables and len(input_tables) > 0:
+        #     table = input_tables[0]
+        #     csv_columns = table.columns if hasattr(table, "columns") and table.columns else []
+        #
+        #     if not csv_columns and table.full_path:
+        #         try:
+        #             with open(table.full_path, "r", encoding="utf-8") as f:
+        #                 reader = csv.DictReader(f)
+        #                 csv_columns = reader.fieldnames or []
+        #         except Exception as e:
+        #             logging.warning(f"Could not read CSV columns: {e}")
+        #
+        # self.client.login(self.params.username, self.params.password)
+        #
+        # try:
+        #     browse_result = self.client.browse_entity(entity_name, folder_id)
+        #     columns_info = browse_result.get("columnsInfo", [])
+        #
+        #     available_fields = []
+        #     for col in columns_info:
+        #         field_info = {
+        #             "field_name": col.get("columnName"),
+        #             "data_type": col.get("dataTypeRepo"),
+        #             "header_text": col.get("headerText"),
+        #             "visible": col.get("visible", True),
+        #         }
+        #         available_fields.append(field_info)
+        #
+        #     suggested_mapping = self._auto_match_fields(csv_columns, available_fields)
+        #
+        #     return {
+        #         "type": "data",
+        #         "data": {
+        #             "entity_name": entity_name,
+        #             "folder_id": folder_id,
+        #             "field_mapping": suggested_mapping,
+        #             "_metadata_": {
+        #                 "table": {
+        #                     "columns": csv_columns,
+        #                 },
+        #                 "api_fields": available_fields,
+        #             },
+        #         },
+        #     }
+        #
+        # finally:
+        #     self.client.logout()
 
     def _auto_match_fields(self, csv_columns: list[str], api_fields: list[dict]) -> list[dict]:
         def normalize(name: str) -> str:
