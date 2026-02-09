@@ -20,9 +20,9 @@ class Component(ComponentBase):
         # TODO: REMOVE DEBUG DATA - This is temporary dummy data for UI testing
         # Uncomment the real implementation below once UI is working
 
-        action_params = self.configuration.action_parameters
-        entity_name = action_params.get("entity_name") or "invoices"
-        folder_id = action_params.get("folder_id") or self.params.default_folder_id or 1
+        # Using defaults for dummy data
+        entity_name = "invoices"
+        folder_id = self.params.default_folder_id or 1
 
         # Dummy CSV columns
         csv_columns = ["invoice_id", "customer_name", "invoice_date", "total_amount", "status"]
@@ -57,13 +57,17 @@ class Component(ComponentBase):
         }
 
         # TODO: REMOVE ABOVE - Restore this real implementation:
-        # action_params = self.configuration.action_parameters
-        # entity_name = action_params.get("entity_name")
+        # # Get entity_name from first table's row configuration
+        # input_tables = self.get_input_tables_definitions()
+        # if not input_tables or len(input_tables) == 0:
+        #     raise UserException("No input table configured")
         #
+        # table_config = input_tables[0].configuration if hasattr(input_tables[0], "configuration") else {}
+        # entity_name = table_config.get("entity_name")
         # if not entity_name:
-        #     raise UserException("Entity name is required")
+        #     raise UserException("Entity name is required in table configuration")
         #
-        # folder_id = action_params.get("folder_id") or self.params.default_folder_id
+        # folder_id = table_config.get("folder_id") or self.params.default_folder_id
         #
         # csv_columns = []
         # input_tables = self.get_input_tables_definitions()
