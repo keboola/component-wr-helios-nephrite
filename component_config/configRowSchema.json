@@ -73,6 +73,13 @@
         }
       }
     },
+    "debug": {
+      "type": "boolean",
+      "title": "Debug Mode",
+      "description": "Enable verbose debug logging",
+      "default": false,
+      "propertyOrder": 5
+    },
     "_metadata_": {
       "type": "object",
       "options": {

@@ -1,7 +1,4 @@
-import logging
-
-from keboola.component.exceptions import UserException
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class FieldMapping(BaseModel):
@@ -9,28 +6,11 @@ class FieldMapping(BaseModel):
     destination_field: str
 
 
-class RowConfiguration(BaseModel):
-    entity_name: str
-    folder_id: int | None = None
-    field_mapping: list[FieldMapping] = Field(default_factory=list)
-
-
-class Configuration(BaseModel):
+class Connection(BaseModel):
     api_url: str
     username: str = Field(alias="#username")
     password: str = Field(alias="#password")
     default_folder_id: int | None = None
-    debug: bool = False
-
-    def __init__(self, **data):
-        try:
-            super().__init__(**data)
-        except ValidationError as e:
-            error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
-            raise UserException(f"Configuration Error: {', '.join(error_messages)}")
-
-        if self.debug:
-            logging.getLogger().setLevel(logging.DEBUG)
 
     @field_validator("api_url")
     @classmethod
@@ -38,3 +18,11 @@ class Configuration(BaseModel):
         if not v.startswith("http"):
             raise ValueError("API URL must start with http:// or https://")
         return v.rstrip("/")
+
+
+class Configuration(BaseModel):
+    connection: Connection
+    entity_name: str
+    folder_id: int | None = None
+    field_mapping: list[FieldMapping] = Field(default_factory=list)
+    debug: bool = False

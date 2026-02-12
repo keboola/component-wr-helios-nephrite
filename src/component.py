@@ -4,120 +4,78 @@ import re
 
 from keboola.component.base import ComponentBase, sync_action
 from keboola.component.exceptions import UserException
+from pydantic import ValidationError
 
-from configuration import Configuration, RowConfiguration
+from configuration import Configuration
 from helios_client import HeliosClient
 
 
 class Component(ComponentBase):
     def __init__(self):
         super().__init__()
-        self.params = Configuration(**self.configuration.parameters)
-        self.client = HeliosClient(self.params.api_url)
+        self._load_configuration()
+        self.client = HeliosClient(self.params.connection.api_url)
+
+    def _load_configuration(self):
+        try:
+            self.params = Configuration(**self.configuration.parameters)
+        except ValidationError as e:
+            error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
+            raise UserException(f"Configuration Error: {', '.join(error_messages)}")
 
     @sync_action("load_entity_fields")
     def load_entity_fields(self) -> dict:
-        # TODO: REMOVE DEBUG DATA - This is temporary dummy data for UI testing
-        # Uncomment the real implementation below once UI is working
+        action_params = self.configuration.action_parameters
+        entity_name = action_params.get("entity_name")
 
-        # Using defaults for dummy data
-        entity_name = "invoices"
-        folder_id = self.params.default_folder_id or 1
+        if not entity_name:
+            raise UserException("Entity name is required")
 
-        # Dummy CSV columns
-        csv_columns = ["invoice_id", "customer_name", "invoice_date", "total_amount", "status"]
+        folder_id = action_params.get("folder_id") or self.params.connection.default_folder_id
 
-        # Dummy API fields
-        available_fields = [
-            {"field_name": "id", "data_type": "INTEGER", "header_text": "Invoice ID"},
-            {"field_name": "customerName", "data_type": "STRING", "header_text": "Customer Name"},
-            {"field_name": "invoiceDate", "data_type": "DATE", "header_text": "Invoice Date"},
-            {"field_name": "totalAmount", "data_type": "DECIMAL", "header_text": "Total Amount"},
-            {"field_name": "status", "data_type": "STRING", "header_text": "Status"},
-            {"field_name": "description", "data_type": "STRING", "header_text": "Description"},
-            {"field_name": "dueDate", "data_type": "DATE", "header_text": "Due Date"},
-        ]
+        csv_columns = []
+        input_tables = self.get_input_tables_definitions()
+        if input_tables and len(input_tables) > 0:
+            table = input_tables[0]
+            csv_columns = table.columns if hasattr(table, "columns") and table.columns else []
 
-        # Auto-match fields
-        suggested_mapping = self._auto_match_fields(csv_columns, available_fields)
+            if not csv_columns and table.full_path:
+                try:
+                    with open(table.full_path, "r", encoding="utf-8") as f:
+                        reader = csv.DictReader(f)
+                        csv_columns = reader.fieldnames or []
+                except Exception as e:
+                    logging.warning(f"Could not read CSV columns: {e}")
 
-        return {
-            "type": "data",
-            "data": {
-                "entity_name": entity_name,
-                "folder_id": folder_id,
-                "field_mapping": suggested_mapping,
-                "_metadata_": {
-                    "table": {
-                        "columns": csv_columns,
-                    },
-                    "api_fields": available_fields,
+        self.client.login(self.params.connection.username, self.params.connection.password)
+
+        try:
+            browse_result = self.client.browse_entity(entity_name, folder_id)
+            columns_info = browse_result.get("columnsInfo", [])
+
+            available_fields = []
+            for col in columns_info:
+                field_info = {
+                    "field_name": col.get("columnName"),
+                    "data_type": col.get("dataTypeRepo"),
+                    "header_text": col.get("headerText"),
+                    "visible": col.get("visible", True),
+                }
+                available_fields.append(field_info)
+
+            suggested_mapping = self._auto_match_fields(csv_columns, available_fields)
+
+            return {
+                "type": "data",
+                "data": {
+                    "entity_name": entity_name,
+                    "folder_id": folder_id,
+                    "field_mapping": suggested_mapping,
                 },
-            },
-        }
+            }
 
-        # TODO: REMOVE ABOVE - Restore this real implementation:
-        # # Get entity_name from first table's row configuration
-        # input_tables = self.get_input_tables_definitions()
-        # if not input_tables or len(input_tables) == 0:
-        #     raise UserException("No input table configured")
-        #
-        # table_config = input_tables[0].configuration if hasattr(input_tables[0], "configuration") else {}
-        # entity_name = table_config.get("entity_name")
-        # if not entity_name:
-        #     raise UserException("Entity name is required in table configuration")
-        #
-        # folder_id = table_config.get("folder_id") or self.params.default_folder_id
-        #
-        # csv_columns = []
-        # input_tables = self.get_input_tables_definitions()
-        # if input_tables and len(input_tables) > 0:
-        #     table = input_tables[0]
-        #     csv_columns = table.columns if hasattr(table, "columns") and table.columns else []
-        #
-        #     if not csv_columns and table.full_path:
-        #         try:
-        #             with open(table.full_path, "r", encoding="utf-8") as f:
-        #                 reader = csv.DictReader(f)
-        #                 csv_columns = reader.fieldnames or []
-        #         except Exception as e:
-        #             logging.warning(f"Could not read CSV columns: {e}")
-        #
-        # self.client.login(self.params.username, self.params.password)
-        #
-        # try:
-        #     browse_result = self.client.browse_entity(entity_name, folder_id)
-        #     columns_info = browse_result.get("columnsInfo", [])
-        #
-        #     available_fields = []
-        #     for col in columns_info:
-        #         field_info = {
-        #             "field_name": col.get("columnName"),
-        #             "data_type": col.get("dataTypeRepo"),
-        #             "header_text": col.get("headerText"),
-        #             "visible": col.get("visible", True),
-        #         }
-        #         available_fields.append(field_info)
-        #
-        #     suggested_mapping = self._auto_match_fields(csv_columns, available_fields)
-        #
-        #     return {
-        #         "type": "data",
-        #         "data": {
-        #             "entity_name": entity_name,
-        #             "folder_id": folder_id,
-        #             "field_mapping": suggested_mapping,
-        #             "_metadata_": {
-        #                 "table": {
-        #                     "columns": csv_columns,
-        #                 },
-        #                 "api_fields": available_fields,
-        #             },
-        #         },
-        #     }
-        #
-        # finally:
-        #     self.client.logout()
+        finally:
+            self.client.logout()
 
     def _auto_match_fields(self, csv_columns: list[str], api_fields: list[dict]) -> list[dict]:
         def normalize(name: str) -> str:
@@ -145,71 +103,54 @@ class Component(ComponentBase):
                 matched_field = api_field_map[csv_col.lower()]
                 mapping["destination_field"] = matched_field.get("field_name")
             else:
-                # Try normalized match
                 normalized = normalize(csv_col)
                 if normalized in api_field_normalized:
                     matched_field = api_field_normalized[normalized]
                     mapping["destination_field"] = matched_field.get("field_name")
 
-            # Only include mappings that have a destination field (matched columns)
             if mapping["destination_field"]:
                 suggested_mapping.append(mapping)
 
         return suggested_mapping
 
     def run(self):
+        if not self.params.field_mapping:
+            raise UserException(
+                "No field mappings configured. Please use the 'Load Fields' button to configure field mappings."
+            )
+
+        field_map = {}
+        for mapping in self.params.field_mapping:
+            if mapping.destination_field:
+                field_map[mapping.source_column] = mapping.destination_field
+
+        if not field_map:
+            raise UserException(
+                "No valid field mappings. Please configure at least one mapping with a destination field."
+            )
+
         input_tables = self.get_input_tables_definitions()
         if not input_tables:
             raise UserException("No input tables found. Please map at least one input table.")
 
         logging.info(f"Found {len(input_tables)} input table(s) to process")
+        logging.info(f"Authenticating with Helios API at {self.params.connection.api_url}")
 
-        logging.info(f"Authenticating with Helios API at {self.params.api_url}")
-        self.client.login(self.params.username, self.params.password)
+        self.client.login(self.params.connection.username, self.params.connection.password)
 
         try:
             for table in input_tables:
                 logging.info(f"Processing table: {table.name}")
-                row_config = self._get_row_configuration(table)
-                self._process_table_generic(self.client, table, row_config, self.params)
+                self._process_table(table, field_map)
 
             logging.info("All tables processed successfully")
 
         finally:
             self.client.logout()
 
-    def _get_row_configuration(self, table) -> RowConfiguration:
-        config_data = {}
-        if hasattr(table, "configuration") and table.configuration:
-            config_data = table.configuration
-
-        try:
-            row_config = RowConfiguration(**config_data)
-        except Exception as e:
-            raise UserException(f"Invalid configuration for table '{table.name}': {e}")
-
-        if not row_config.field_mapping:
-            raise UserException(
-                f"No field mappings configured for table '{table.name}'. "
-                f"Please use the 'Load Fields' button to configure field mappings."
-            )
-
-        return row_config
-
-    def _process_table_generic(self, client: HeliosClient, table, row_config: RowConfiguration, params: Configuration):
-        entity_name = row_config.entity_name
-        folder_id = row_config.folder_id or params.default_folder_id
-
-        field_map = {}
-        for mapping in row_config.field_mapping:
-            if mapping.destination_field:
-                field_map[mapping.source_column] = mapping.destination_field
-
-        if not field_map:
-            raise UserException(
-                f"No valid field mappings for table '{table.name}'. "
-                f"Please configure at least one enabled mapping with a destination field."
-            )
+    def _process_table(self, table, field_map: dict):
+        entity_name = self.params.entity_name
+        folder_id = self.params.folder_id or self.params.connection.default_folder_id
 
         logging.info(f"Creating entities for '{entity_name}' with {len(field_map)} mapped fields")
 
@@ -223,10 +164,10 @@ class Component(ComponentBase):
                 for row_num, csv_row in enumerate(reader, start=1):
                     try:
                         api_payload = self._transform_row(csv_row, field_map)
-                        client.create_entity(entity_name, api_payload, folder_id)
+                        self.client.create_entity(entity_name, api_payload, folder_id)
                         success_count += 1
 
-                        if params.debug and success_count <= 3:
+                        if self.params.debug and success_count <= 3:
                             logging.debug(f"Created entity {success_count}: {api_payload}")
 
                     except UserException as e:
