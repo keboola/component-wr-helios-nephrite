@@ -1,6 +1,5 @@
 import base64
 import logging
-import os
 
 import requests
 from keboola.component.exceptions import UserException
@@ -8,7 +7,7 @@ from keboola.component.exceptions import UserException
 
 class HeliosClient:
     def __init__(self, base_url: str):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = base_url  # URL is already normalised by Configuration.validate_api_url
         self.session = requests.Session()
         self._auth_credentials: tuple[str, str] | None = None
 
@@ -54,80 +53,9 @@ class HeliosClient:
         finally:
             self._auth_credentials = None
 
-    def upload_file(self, file_path: str, folder_id: int | None = None) -> str:
-        url = f"{self.base_url}/api/v1/Files/Upload"
-        if folder_id:
-            url += f"?folderId={folder_id}"
-
-        headers = self._get_auth_header()
-        filename = os.path.basename(file_path)
-
-        try:
-            with open(file_path, "rb") as f:
-                files = {"file": (filename, f, "text/csv")}
-                response = self.session.post(url, headers=headers, files=files)
-                response.raise_for_status()
-        except FileNotFoundError:
-            raise UserException(f"File not found: {file_path}")
-        except requests.exceptions.RequestException as e:
-            raise UserException(f"File upload failed: {e}")
-
-        data = response.json()
-
-        if "fileUID" not in data:
-            raise UserException(f"File upload failed: No fileUID in response. Response: {data}")
-
-        logging.info(f"Successfully uploaded file {filename}, fileUID: {data['fileUID']}")
-        return data["fileUID"]
-
-    def general_import(
-        self,
-        import_id: int,
-        file_uid: str,
-        data_source: str = "S",
-        target_folder_id: int | None = None,
-        transaction_scope: str | None = None,
-        error_limit: int | None = None,
-    ) -> dict:
-        url = f"{self.base_url}/api/v1/DataTransfers/GeneralImport/{import_id}"
-        url += f"?fileUID={file_uid}"
-
-        headers = self._get_auth_header()
-        headers["Content-Type"] = "application/json"
-
-        params_item = {"dataSource": data_source}
-
-        if target_folder_id is not None:
-            params_item["targetFolderId"] = target_folder_id
-
-        if transaction_scope:
-            params_item["transactionScope"] = transaction_scope
-
-        if error_limit is not None:
-            params_item["errorLimit"] = error_limit
-
-        payload = {"params": [params_item]}
-
-        try:
-            response = self.session.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            error_detail = ""
-            if hasattr(e, "response") and e.response is not None:
-                try:
-                    error_detail = e.response.json()
-                except Exception:
-                    error_detail = e.response.text
-            raise UserException(f"GeneralImport failed: {e}. Details: {error_detail}")
-
-        data = response.json()
-        logging.info(f"GeneralImport completed for import_id={import_id}")
-
-        return data
-
     def browse_entity(self, entity_name: str, folder_id: int | None = None, top: int = 1) -> dict:
         url = f"{self.base_url}/api/v1/Generic/browse/{entity_name}?Top={top}"
-        if folder_id:
+        if folder_id is not None:
             url += f"&FolderId={folder_id}"
 
         headers = self._get_auth_header()
@@ -157,7 +85,7 @@ class HeliosClient:
 
     def create_entity(self, entity_name: str, data: dict, folder_id: int | None = None) -> dict:
         url = f"{self.base_url}/api/v1/Generic/{entity_name}"
-        if folder_id:
+        if folder_id is not None:
             url += f"?folderId={folder_id}"
 
         headers = self._get_auth_header()

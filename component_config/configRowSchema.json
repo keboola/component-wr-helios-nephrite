@@ -14,7 +14,7 @@
     "folder_id": {
       "type": "integer",
       "title": "Folder ID",
-      "description": "Optional folder ID for this entity (overrides default from global config)",
+      "description": "Optional folder ID for this entity. Leave empty if not required.",
       "propertyOrder": 2
     },
     "field_mapping": {
@@ -45,16 +45,6 @@
             "type": "string",
             "title": "Destination Field",
             "description": "Field name in the Helios API",
-            "watch": {
-              "api_fields": "_metadata_.api_fields"
-            },
-            "enumSource": [
-              {
-                "source": "api_fields",
-                "title": "{{item.field_name}}",
-                "value": "{{item.field_name}}"
-              }
-            ],
             "propertyOrder": 2
           }
         }
@@ -75,6 +65,7 @@
     },
     "debug": {
       "type": "boolean",
+      "format": "checkbox",
       "title": "Debug Mode",
       "description": "Enable verbose debug logging",
       "default": false,
@@ -92,23 +83,6 @@
             "columns": {
               "type": "array",
               "items": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "api_fields": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "field_name": {
-                "type": "string"
-              },
-              "data_type": {
-                "type": "string"
-              },
-              "header_text": {
                 "type": "string"
               }
             }

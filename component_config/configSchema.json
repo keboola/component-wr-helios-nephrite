@@ -34,12 +34,6 @@
           "format": "password",
           "description": "Helios password for authentication",
           "propertyOrder": 3
-        },
-        "default_folder_id": {
-          "type": "integer",
-          "title": "Default Folder ID",
-          "description": "Optional default folder ID for entity creation (can be overridden per table)",
-          "propertyOrder": 4
         }
       },
       "propertyOrder": 1

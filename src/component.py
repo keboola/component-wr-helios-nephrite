@@ -25,17 +25,20 @@ class Component(ComponentBase):
 
     @sync_action("load_entity_fields")
     def load_entity_fields(self) -> dict:
+        if not self.params.connection:
+            raise UserException("Please save the connection configuration before loading fields.")
+
         action_params = self.configuration.action_parameters
         entity_name = action_params.get("entity_name")
 
         if not entity_name:
             raise UserException("Entity name is required")
 
-        folder_id = action_params.get("folder_id") or self.params.connection.default_folder_id
+        folder_id = action_params.get("folder_id")
 
         csv_columns = []
         input_tables = self.get_input_tables_definitions()
-        if input_tables and len(input_tables) > 0:
+        if input_tables:
             table = input_tables[0]
             csv_columns = table.columns if hasattr(table, "columns") and table.columns else []
 
@@ -114,6 +117,9 @@ class Component(ComponentBase):
         return suggested_mapping
 
     def run(self):
+        if not self.params.entity_name:
+            raise UserException("Entity name is required. Please configure it in the row settings.")
+
         if not self.params.field_mapping:
             raise UserException(
                 "No field mappings configured. Please use the 'Load Fields' button to configure field mappings."
@@ -150,7 +156,7 @@ class Component(ComponentBase):
 
     def _process_table(self, table, field_map: dict):
         entity_name = self.params.entity_name
-        folder_id = self.params.folder_id or self.params.connection.default_folder_id
+        folder_id = self.params.folder_id
 
         logging.info(f"Creating entities for '{entity_name}' with {len(field_map)} mapped fields")
 
