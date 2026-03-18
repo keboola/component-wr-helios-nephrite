@@ -44,7 +44,7 @@ class Component(ComponentBase):
 
             if not csv_columns and table.full_path:
                 try:
-                    with open(table.full_path, "r", encoding="utf-8") as f:
+                    with open(table.full_path, encoding="utf-8") as f:
                         reader = csv.DictReader(f)
                         csv_columns = reader.fieldnames or []
                 except Exception as e:
@@ -164,7 +164,7 @@ class Component(ComponentBase):
         error_count = 0
 
         try:
-            with open(table.full_path, "r", encoding="utf-8") as f:
+            with open(table.full_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
 
                 for row_num, csv_row in enumerate(reader, start=1):
