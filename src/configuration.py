@@ -22,6 +22,7 @@ class Connection(BaseModel):
 
 
 class Configuration(BaseModel):
+    acknowledge: bool = False
     connection: Connection
     entity_name: str | None = None
     folder_id: int | None = None

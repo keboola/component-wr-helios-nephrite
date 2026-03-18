@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from component import Component
 from configuration import Configuration, Connection
+from helios_client import HeliosClient
 
 
 def _make_component() -> Component:
@@ -95,26 +96,106 @@ class TestTransformRow(unittest.TestCase):
         self.assertIsNone(result["customerName"])
 
 
-class TestRunMocked(unittest.TestCase):
-    @patch("component.HeliosClient")
-    @patch.dict(os.environ, {"KBC_DATADIR": "./tests/data/happy-path"})
-    def test_run_calls_create_entity(self, mock_client_cls):
-        mock_client = MagicMock()
-        mock_client_cls.return_value = mock_client
-
+class TestRunValidation(unittest.TestCase):
+    def test_run_raises_when_no_field_mappings(self):
         comp = _make_component()
         comp.params = Configuration(
             connection=_make_connection(),
             entity_name="invoices",
             field_mapping=[],
         )
-        comp.client = mock_client
+        comp.client = MagicMock()
 
-        # No field mappings → should raise UserException before hitting the API
         from keboola.component.exceptions import UserException
 
         with self.assertRaises(UserException):
             comp.run()
+
+
+class TestHeliosClient(unittest.TestCase):
+    def _make_client(self) -> HeliosClient:
+        client = HeliosClient("https://api.helios.example.com")
+        client._auth_credentials = ("testuser", "user-id-123")
+        return client
+
+    def test_login_success(self):
+        client = HeliosClient("https://api.helios.example.com")
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"userId": "user-id-123", "userName": "testuser"}
+
+        with patch.object(client.session, "post", return_value=mock_response) as mock_post:
+            result = client.login("testuser", "secret")
+
+        mock_post.assert_called_once()
+        self.assertEqual(result["userId"], "user-id-123")
+        self.assertEqual(client._auth_credentials, ("testuser", "user-id-123"))
+
+    def test_login_missing_user_id_raises(self):
+        client = HeliosClient("https://api.helios.example.com")
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"error": "bad credentials"}
+
+        from keboola.component.exceptions import UserException
+
+        with patch.object(client.session, "post", return_value=mock_response):
+            with self.assertRaises(UserException):
+                client.login("testuser", "wrong")
+
+    def test_login_non_json_response_raises(self):
+        client = HeliosClient("https://api.helios.example.com")
+        mock_response = MagicMock()
+        mock_response.json.side_effect = ValueError("No JSON")
+        mock_response.status_code = 200
+        mock_response.text = "<html>Error</html>"
+
+        from keboola.component.exceptions import UserException
+
+        with patch.object(client.session, "post", return_value=mock_response):
+            with self.assertRaises(UserException):
+                client.login("testuser", "secret")
+
+    def test_browse_entity_success(self):
+        client = self._make_client()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"columnsInfo": [{"columnName": "docNo"}]}
+
+        with patch.object(client.session, "get", return_value=mock_response):
+            result = client.browse_entity("invoices")
+
+        self.assertIn("columnsInfo", result)
+
+    def test_browse_entity_missing_columns_info_raises(self):
+        client = self._make_client()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"unexpected": "data"}
+
+        from keboola.component.exceptions import UserException
+
+        with patch.object(client.session, "get", return_value=mock_response):
+            with self.assertRaises(UserException):
+                client.browse_entity("invoices")
+
+    def test_create_entity_success(self):
+        client = self._make_client()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": 42}
+
+        with patch.object(client.session, "post", return_value=mock_response):
+            result = client.create_entity("invoices", {"docNo": "INV-001"})
+
+        self.assertEqual(result["id"], 42)
+
+    def test_create_entity_http_error_raises(self):
+        client = self._make_client()
+
+        import requests as req
+        from keboola.component.exceptions import UserException
+
+        http_error = req.exceptions.HTTPError(response=MagicMock(json=MagicMock(return_value={"error": "bad"})))
+
+        with patch.object(client.session, "post", side_effect=http_error):
+            with self.assertRaises(UserException):
+                client.create_entity("invoices", {"docNo": "INV-001"})
 
 
 if __name__ == "__main__":

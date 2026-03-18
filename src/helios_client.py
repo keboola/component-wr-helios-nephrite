@@ -4,6 +4,8 @@ import logging
 import requests
 from keboola.component.exceptions import UserException
 
+DEFAULT_TIMEOUT = 30
+
 
 class HeliosClient:
     def __init__(self, base_url: str):
@@ -20,17 +22,26 @@ class HeliosClient:
         encoded = base64.b64encode(credentials.encode()).decode()
         return {"Authorization": f"Basic {encoded}"}
 
+    @staticmethod
+    def _parse_json(response: requests.Response, context: str) -> dict:
+        try:
+            return response.json()
+        except ValueError as e:
+            raise UserException(
+                f"{context}: expected JSON response but got {response.status_code} — {response.text[:200]}"
+            ) from e
+
     def login(self, username: str, password: str) -> dict:
         url = f"{self.base_url}/api/Connect/LogIn"
         payload = {"userName": username, "password": password}
 
         try:
-            response = self.session.post(url, json=payload)
+            response = self.session.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            raise UserException(f"Authentication failed: {e}")
+            raise UserException(f"Authentication failed: {e}") from e
 
-        data = response.json()
+        data = self._parse_json(response, "Login")
 
         if "userId" not in data:
             raise UserException("Authentication failed: No userId in response")
@@ -46,7 +57,7 @@ class HeliosClient:
 
         url = f"{self.base_url}/api/Connect/LogOut"
         try:
-            self.session.post(url, headers=self._get_auth_header())
+            self.session.post(url, headers=self._get_auth_header(), timeout=DEFAULT_TIMEOUT)
             logging.info("Successfully logged out")
         except requests.exceptions.RequestException as e:
             logging.warning(f"Logout request failed: {e}")
@@ -61,7 +72,7 @@ class HeliosClient:
         headers = self._get_auth_header()
 
         try:
-            response = self.session.get(url, headers=headers)
+            response = self.session.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             error_detail = ""
@@ -70,9 +81,11 @@ class HeliosClient:
                     error_detail = e.response.json()
                 except Exception:
                     error_detail = e.response.text
-            raise UserException(f"Failed to browse entity '{entity_name}': {e}. Details: {error_detail}")
+            raise UserException(
+                f"Failed to browse entity '{entity_name}': {e}. Details: {error_detail}"
+            ) from e
 
-        data = response.json()
+        data = self._parse_json(response, f"Browse entity '{entity_name}'")
 
         if "columnsInfo" not in data:
             raise UserException(
@@ -92,7 +105,7 @@ class HeliosClient:
         headers["Content-Type"] = "application/json"
 
         try:
-            response = self.session.post(url, headers=headers, json=data)
+            response = self.session.post(url, headers=headers, json=data, timeout=DEFAULT_TIMEOUT)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             error_detail = ""
@@ -101,8 +114,10 @@ class HeliosClient:
                     error_detail = e.response.json()
                 except Exception:
                     error_detail = e.response.text
-            raise UserException(f"Failed to create entity '{entity_name}': {e}. Details: {error_detail}")
+            raise UserException(
+                f"Failed to create entity '{entity_name}': {e}. Details: {error_detail}"
+            ) from e
 
-        result = response.json()
+        result = self._parse_json(response, f"Create entity '{entity_name}'")
         logging.debug(f"Successfully created entity '{entity_name}': {result}")
         return result

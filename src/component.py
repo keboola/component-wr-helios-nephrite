@@ -20,8 +20,8 @@ class Component(ComponentBase):
         try:
             self.params = Configuration(**self.configuration.parameters)
         except ValidationError as e:
-            error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
-            raise UserException(f"Configuration Error: {', '.join(error_messages)}")
+            error_messages = [f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}" for err in e.errors()]
+            raise UserException(f"Configuration Error: {', '.join(error_messages)}") from e
 
     @sync_action("load_entity_fields")
     def load_entity_fields(self) -> dict:
