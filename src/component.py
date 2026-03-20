@@ -20,27 +20,19 @@ class Component(ComponentBase):
         try:
             self.params = Configuration(**self.configuration.parameters)
         except ValidationError as e:
-            error_messages = [f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}" for err in e.errors()]
-            raise UserException(f"Configuration Error: {', '.join(error_messages)}") from e
+            error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
+            raise UserException(f"Configuration Error: {', '.join(error_messages)}")
 
     @sync_action("load_entity_fields")
     def load_entity_fields(self) -> dict:
-        if not self.params.connection:
-            raise UserException("Please save the connection configuration before loading fields.")
-
-        action_params = self.configuration.action_parameters
-        entity_name = action_params.get("entity_name")
-
-        if not entity_name:
+        if not self.params.entity_name:
             raise UserException("Entity name is required")
-
-        folder_id = action_params.get("folder_id")
 
         csv_columns = []
         input_tables = self.get_input_tables_definitions()
         if input_tables:
             table = input_tables[0]
-            csv_columns = table.columns if hasattr(table, "columns") and table.columns else []
+            csv_columns = table.column_names if hasattr(table, "column_names") and table.column_names else []
 
             if not csv_columns and table.full_path:
                 try:
@@ -50,35 +42,45 @@ class Component(ComponentBase):
                 except Exception as e:
                     logging.warning(f"Could not read CSV columns: {e}")
 
-        self.client.login(self.params.connection.username, self.params.connection.password)
+        # TODO: Remove dummy CSV columns once real input tables are available during sync actions
+        if not csv_columns:
+            csv_columns = ["id", "name", "description", "created_at", "updated_at"]
 
-        try:
-            browse_result = self.client.browse_entity(entity_name, folder_id)
-            columns_info = browse_result.get("columnsInfo", [])
+        # TODO: Remove dummy data and uncomment real API call once Helios API is available
+        available_fields = [
+            {"field_name": "id", "data_type": "integer", "header_text": "ID", "visible": True},
+            {"field_name": "name", "data_type": "string", "header_text": "Name", "visible": True},
+            {"field_name": "description", "data_type": "string", "header_text": "Description", "visible": True},
+            {"field_name": "created_at", "data_type": "datetime", "header_text": "Created At", "visible": True},
+            {"field_name": "updated_at", "data_type": "datetime", "header_text": "Updated At", "visible": True},
+        ]
+        # self.client.login(self.params.connection.username, self.params.connection.password)
+        # try:
+        #     browse_result = self.client.browse_entity(entity_name, folder_id)
+        #     columns_info = browse_result.get("columnsInfo", [])
+        #     available_fields = [
+        #         {
+        #             "field_name": col.get("columnName"),
+        #             "data_type": col.get("dataTypeRepo"),
+        #             "header_text": col.get("headerText"),
+        #             "visible": col.get("visible", True),
+        #         }
+        #         for col in columns_info
+        #     ]
+        # finally:
+        #     self.client.logout()
 
-            available_fields = []
-            for col in columns_info:
-                field_info = {
-                    "field_name": col.get("columnName"),
-                    "data_type": col.get("dataTypeRepo"),
-                    "header_text": col.get("headerText"),
-                    "visible": col.get("visible", True),
-                }
-                available_fields.append(field_info)
+        field_mapping = self._auto_match_fields(csv_columns, available_fields)
 
-            suggested_mapping = self._auto_match_fields(csv_columns, available_fields)
-
-            return {
-                "type": "data",
-                "data": {
-                    "entity_name": entity_name,
-                    "folder_id": folder_id,
-                    "field_mapping": suggested_mapping,
-                },
-            }
-
-        finally:
-            self.client.logout()
+        cfg_data = self.params.model_dump(exclude={"connection", "acknowledge"})
+        cfg_data["field_mapping"] = field_mapping
+        return {
+            "type": "data",
+            "data": {
+                **cfg_data,
+                "_metadata_": {"api_fields": available_fields},
+            },
+        }
 
     def _auto_match_fields(self, csv_columns: list[str], api_fields: list[dict]) -> list[dict]:
         def normalize(name: str) -> str:
@@ -111,8 +113,7 @@ class Component(ComponentBase):
                     matched_field = api_field_normalized[normalized]
                     mapping["destination_field"] = matched_field.get("field_name")
 
-            if mapping["destination_field"]:
-                suggested_mapping.append(mapping)
+            suggested_mapping.append(mapping)
 
         return suggested_mapping
 

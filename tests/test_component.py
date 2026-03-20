@@ -54,19 +54,19 @@ class TestAutoMatchFields(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["destination_field"], "documentNumber")
 
-    def test_no_match_excluded_from_result(self):
+    def test_no_match_included_with_empty_destination(self):
         result = self.comp._auto_match_fields(
             ["unrelated_column"],
             [{"field_name": "documentNumber", "data_type": "string", "header_text": "Doc Number"}],
         )
-        self.assertEqual(result, [])
+        self.assertEqual(result, [{"source_column": "unrelated_column", "destination_field": ""}])
 
     def test_field_with_none_name_skipped(self):
         result = self.comp._auto_match_fields(
             ["id"],
             [{"field_name": None, "data_type": "string", "header_text": "ID"}],
         )
-        self.assertEqual(result, [])
+        self.assertEqual(result, [{"source_column": "id", "destination_field": ""}])
 
 
 class TestTransformRow(unittest.TestCase):

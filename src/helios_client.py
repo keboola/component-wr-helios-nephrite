@@ -81,9 +81,7 @@ class HeliosClient:
                     error_detail = e.response.json()
                 except Exception:
                     error_detail = e.response.text
-            raise UserException(
-                f"Failed to browse entity '{entity_name}': {e}. Details: {error_detail}"
-            ) from e
+            raise UserException(f"Failed to browse entity '{entity_name}': {e}. Details: {error_detail}") from e
 
         data = self._parse_json(response, f"Browse entity '{entity_name}'")
 
@@ -114,9 +112,7 @@ class HeliosClient:
                     error_detail = e.response.json()
                 except Exception:
                     error_detail = e.response.text
-            raise UserException(
-                f"Failed to create entity '{entity_name}': {e}. Details: {error_detail}"
-            ) from e
+            raise UserException(f"Failed to create entity '{entity_name}': {e}. Details: {error_detail}") from e
 
         result = self._parse_json(response, f"Create entity '{entity_name}'")
         logging.debug(f"Successfully created entity '{entity_name}': {result}")
