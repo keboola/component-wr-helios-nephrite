@@ -72,6 +72,16 @@ class Component(ComponentBase):
 
         field_mapping = self._auto_match_fields(csv_columns, available_fields)
 
+        # User-configured mappings take priority over auto-matched values
+        user_overrides = {
+            m.source_column: m.destination_field
+            for m in self.params.field_mapping
+            if m.destination_field
+        }
+        for entry in field_mapping:
+            if entry["source_column"] in user_overrides:
+                entry["destination_field"] = user_overrides[entry["source_column"]]
+
         cfg_data = self.params.model_dump(exclude={"connection", "acknowledge"})
         cfg_data["field_mapping"] = field_mapping
         return {
