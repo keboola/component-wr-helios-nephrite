@@ -1,1 +1,107 @@
-{}
+{
+  "type": "object",
+  "title": "Table Configuration",
+  "required": [
+    "entity_name"
+  ],
+  "properties": {
+    "entity_name": {
+      "type": "string",
+      "title": "Entity Name",
+      "description": "Helios entity class name (e.g., 'invoices', 'customers', 'items')",
+      "propertyOrder": 1
+    },
+    "folder_id": {
+      "type": "integer",
+      "title": "Folder ID",
+      "description": "Optional folder ID for this entity (overrides default from global config)",
+      "propertyOrder": 2
+    },
+    "field_mapping": {
+      "type": "array",
+      "title": "Field Mapping",
+      "description": "Mapping between CSV columns and Helios API fields",
+      "format": "table",
+      "propertyOrder": 3,
+      "items": {
+        "type": "object",
+        "title": "Field Mapping",
+        "required": [
+          "source_column",
+          "destination_field"
+        ],
+        "properties": {
+          "source_column": {
+            "type": "string",
+            "title": "Source Column",
+            "description": "Column name from the input CSV file",
+            "options": {
+              "readOnly": true
+            },
+            "propertyOrder": 1
+          },
+          "destination_field": {
+            "type": "string",
+            "title": "Destination Field",
+            "description": "Field name in the Helios API",
+            "watch": {
+              "api_fields": "_metadata_.api_fields"
+            },
+            "enumSource": [
+              {
+                "source": "api_fields",
+                "title": "{{item.field_name}}",
+                "value": "{{item.field_name}}"
+              }
+            ],
+            "propertyOrder": 2
+          }
+        }
+      }
+    },
+    "load_fields": {
+      "type": "button",
+      "format": "sync-action",
+      "propertyOrder": 4,
+      "options": {
+        "async": {
+          "label": "Reload Fields",
+          "action": "load_entity_fields",
+          "cache": false
+        }
+      }
+    },
+    "debug": {
+      "type": "boolean",
+      "title": "Debug Mode",
+      "description": "Enable verbose debug logging",
+      "default": false,
+      "propertyOrder": 5
+    },
+    "_metadata_": {
+      "type": "object",
+      "options": {
+        "hidden": true
+      },
+      "properties": {
+        "api_fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field_name": {
+                "type": "string"
+              },
+              "data_type": {
+                "type": "string"
+              },
+              "header_text": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

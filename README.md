@@ -1,53 +1,65 @@
 Helios Nephrite Writer
 =============
 
+**Please contact Keboola support to assist with the initial setup of this component.**
+
 Description
+-----------
+
+This component writes data from Keboola Connection to [Helios Nephrite](https://www.helios.eu/en/), a modern ERP system designed for medium and large enterprises.
+
+Helios is a comprehensive ERP system for enterprise resource planning, offering modules for finance, accounting, inventory, sales, purchasing, and business process management.
 
 **Table of Contents:**
 
 [TOC]
 
-Functionality Notes
-===================
-
-Prerequisites
-=============
-
-Ensure you have the necessary API token, register the application, etc.
-
 Features
 ========
 
-| **Feature**             | **Description**                               |
-|-------------------------|-----------------------------------------------|
-| Generic UI Form         | Dynamic UI form for easy configuration.       |
-| Row-Based Configuration | Allows structuring the configuration in rows. |
-| OAuth                   | OAuth authentication enabled.                 |
-| Incremental Loading     | Fetch data in new increments.                 |
-| Backfill Mode           | Supports seamless backfill setup.             |
-| Date Range Filter       | Specify the date range for data retrieval.    |
+| **Feature**             | **Description**                                                                                     |
+|-------------------------|-----------------------------------------------------------------------------------------------------|
+| Entity Creation         | Create records for any entity type available in your Helios Nephrite instance.                      |
+| Flexible Field Mapping  | Map columns from your input CSV to Helios entity fields with auto-suggested mappings.               |
+| Folder Organization     | Target specific folders within Helios to organize your data according to your business structure.   |
+| Batch Processing        | Process multiple input tables in a single run, efficiently creating entities row by row.            |
 
-Supported Endpoints
-===================
+Use Cases
+=========
 
-If you need additional endpoints, please submit your request to
-[ideas.keboola.com](https://ideas.keboola.com/).
+- Synchronize customer master data from external systems into Helios
+- Import product catalogs and inventory data
+- Load transactional data such as orders or invoices
+- Migrate data from legacy systems to Helios Nephrite
 
 Configuration
 =============
 
-Param 1
--------
-Details about parameter 1.
+Connection Settings
+-------------------
 
-Param 2
--------
-Details about parameter 2.
+| Parameter           | Description                                                        | Required |
+|---------------------|--------------------------------------------------------------------|----------|
+| API URL             | The base URL of your Helios Nephrite API instance.                 | Yes      |
+| Username            | Your Helios account username.                                      | Yes      |
+| Password            | Your Helios account password.                                      | Yes      |
+| Default Folder ID   | Optional default folder ID for organizing created entities.        | No       |
 
-Output
-======
+Entity Settings
+---------------
 
-Provides a list of tables, foreign keys, and schema.
+| Parameter      | Description                                                                                      | Required |
+|----------------|--------------------------------------------------------------------------------------------------|----------|
+| Entity Name    | The target entity type in Helios (e.g., `Adresar` for address book, `Zbozi` for products).       | Yes      |
+| Folder ID      | Override the default folder ID for this specific configuration.                                  | No       |
+| Field Mapping  | Mapping of source CSV columns to destination Helios entity fields. Use "Load Fields" to configure. | Yes      |
+
+Notes
+=====
+
+- Ensure your Helios user account has appropriate permissions to create entities in the target folders.
+- The component creates new records only; updating existing records is not supported in this version.
+- Empty values in mapped columns are sent as null to the API.
 
 Development
 -----------

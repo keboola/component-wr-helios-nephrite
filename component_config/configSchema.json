@@ -1,19 +1,42 @@
 {
   "type": "object",
-  "title": "extractor configuration",
-  "required": [
-    "print_hello"
-  ],
+  "title": "Helios Nephrite Writer Configuration",
+  "required": ["acknowledge", "connection"],
   "properties": {
-    "print_hello": {
+    "acknowledge": {
       "type": "boolean",
-      "title": "Print Hello",
-      "propertyOrder": 1
+      "title": "I understand I need to contact support to set up this component",
+      "format": "checkbox",
+      "description": "Due to implementation limitations, we currently need to help each new client set up the integration to their Helios instance. This needs to be done only ONCE",
+      "default": false,
+      "propertyOrder": 0
     },
-    "debug": {
-      "type": "boolean",
-      "title": "Debug",
-      "propertyOrder": 2
+    "connection": {
+      "type": "object",
+      "title": "Connection",
+      "required": ["api_url", "#username", "#password"],
+      "properties": {
+        "api_url": {
+          "type": "string",
+          "title": "API URL",
+          "description": "Base URL for Helios Nephrite API (e.g., https://api.helios.eu)",
+          "propertyOrder": 1
+        },
+        "#username": {
+          "type": "string",
+          "title": "Username",
+          "description": "Helios username for authentication",
+          "propertyOrder": 2
+        },
+        "#password": {
+          "type": "string",
+          "title": "Password",
+          "format": "password",
+          "description": "Helios password for authentication",
+          "propertyOrder": 3
+        }
+      },
+      "propertyOrder": 1
     }
   }
 }
